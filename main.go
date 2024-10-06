@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -59,6 +60,7 @@ var debugEnv bool
 var verboseEnv bool
 var doAuthEnv bool
 var endpointEnv string
+var scheduledScanIntervalMinsEnv string
 var client *http.Client
 var scanBody string
 
@@ -102,6 +104,10 @@ func init() {
 	endpointEnv, ok = os.LookupEnv("STASH_API_ENDPOINT")
 	if !ok {
 		log.Fatal("Stash API endpoint is unset")
+	}
+	scheduledScanIntervalMinsEnv, ok = os.LookupEnv("STASH_SCAN_INTERVAL_MINS")
+	if !ok {
+		scheduledScanIntervalMinsEnv = "30"
 	}
 
 	tr := &http.Transport{
@@ -342,6 +348,23 @@ func main() {
 
 		go watchSubdirs(w, wat)
 	}
+
+	d, err := strconv.Atoi(scheduledScanIntervalMinsEnv)
+	if err != nil {
+		log.Fatal("Error converting string to int:", err)
+	}
+	ticker := time.NewTicker(time.Duration(d) * time.Minute)
+	defer ticker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				printInfo("Running scheduled scan")
+				sendScanRequest(endpointEnv, doAuthEnv)
+			}
+		}
+	}()
 
 	sigInt := make(chan os.Signal, 1)
 	signal.Notify(sigInt, os.Interrupt)
