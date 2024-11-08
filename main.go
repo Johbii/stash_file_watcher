@@ -59,6 +59,7 @@ var watcherFlag watcher
 var debugEnv bool
 var verboseEnv bool
 var doAuthEnv bool
+var scheduledOnlyEnv bool
 var endpointEnv string
 var scheduledScanIntervalMinsEnv string
 var client *http.Client
@@ -69,6 +70,7 @@ func init() {
 	_, debugEnv = os.LookupEnv("STASH_WATCH_DEBUG")
 	_, verboseEnv = os.LookupEnv("STASH_WATCH_VERBOSE")
 	_, doAuthEnv = os.LookupEnv("STASH_WATCH_DO_AUTH")
+	_, scheduledOnlyEnv = os.LookupEnv("STASH_WATCH_SCHEDULED_ONLY")
 
 	// scan options
 	_, scanRescan := os.LookupEnv("STASH_WATCH_FORCE_RESCAN")
@@ -326,12 +328,16 @@ func main() {
 	if len(flag.Args()) > 0 {
 		log.Fatal("Unknown arguments: ", flag.Args())
 	}
-	if len(watcherFlag) < 1 {
+	if len(watcherFlag) < 1 && !scheduledOnlyEnv {
 		log.Fatal("Error: no watcher arguments provided. ",
 			"Use '--watcher <PATH>' to start watching directories.")
 	}
 
 	for _, w := range watcherFlag {
+		if scheduledOnlyEnv {
+			printVerbose("Sending scheduled scans only, will not watch filesystem.")
+			break
+		}
 		wat, err := fsnotify.NewWatcher()
 		if err != nil {
 			log.Fatal(err)
